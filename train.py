@@ -22,6 +22,7 @@ model_dict['nonlinearity'] = 'swish'
 model_dict['sigma_max'] = 50
 model_dict['sigma_min'] = 0.01
 model_dict['num_scales'] = 1000
+model_dict['savepath'] = 'ddpm'
 data_dict = dict()
 data_dict['image_size'] = 32
 data_dict['num_channels'] = 3
@@ -50,4 +51,4 @@ ema_ = ema.ExponentialMovingAverage(eps_th.parameters(), decay=0.9999)
 sched = lrsc.StepLR(optim, step_size=30, gamma=0.1)
 
 wandb.init(project='sota_cifar')
-train(eps_th, train_loader, optim, ema_, 1000, 0, 1.0, 'ddpm', device, config)
+train(eps_th, train_loader, optim, ema_, 1000, 0, 1.0, device, config)

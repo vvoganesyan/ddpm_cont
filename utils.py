@@ -89,7 +89,7 @@ def calc_losses(eps_th, x, downsample_step=0, T_ds=0.15):
 
     return loss_sm
 
-def train(eps_th, train_loader, optim, ema, epochs, downsample_step, T_ds, expname, device, config):    
+def train(eps_th, train_loader, optim, ema, epochs, downsample_step, T_ds, device, config):
     step = 0
     for epoch in trange(epochs):
         eps_th.train()
@@ -108,9 +108,7 @@ def train(eps_th, train_loader, optim, ema, epochs, downsample_step, T_ds, expna
             ema.update(eps_th.parameters())
             log_losses('Train', loss_total, step)
             step += 1
-        torch.save(eps_th.state_dict(), expname+'_model')
-        torch.save(ema.state_dict(), expname+'_ema')
-        torch.save(optim.state_dict(), expname+'_optim')
+        torch.save({'model': eps_th.state_dict(), 'ema': ema.state_dict(), 'optim': optim.state_dict()}, config.model.savepath)
 
         wandb.log({'epoch': epoch}, step=step)
     
