@@ -52,7 +52,7 @@ ema_.copy_to(eps_th.parameters())
 eps_th.eval()
 
 with torch.no_grad():
-    save_callable(lambda: sample_sde(device, eps_th), "data_model", 256)
+    save_callable(lambda: sample_sde(device, eps_th, config.data.image_size, config.data.num_channels, 128), "sampled_images", 128)
     
 # save_dataloader(train_loader, 'data_dataset', 128*128)
 

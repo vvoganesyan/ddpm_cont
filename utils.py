@@ -242,9 +242,9 @@ def solve_sde(device, x, f, g, ts=0, tf=1, dt=1e-3):
         z = torch.randn_like(x).to(device)
         x = x + f(tt, x) * dt + g(tt, x) * z * abs(dt) ** 0.5    
     return x
-def sample_sde(device, eps_th):
+def sample_sde(device, eps_th, image_size, num_channels, batch_size_sample):
     x = solve_sde(device,
-        torch.randn(128, 3, 32, 32).to(device),
+        torch.randn(batch_size_sample, num_channels, image_size, image_size).to(device),
         f=lambda t, x: -10*t*x - 20*t*s(eps_th, t, x),
         g=lambda t, x: (20*t) ** 0.5,
         ts=1, tf=0.0, dt=-1e-3
