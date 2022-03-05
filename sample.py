@@ -22,6 +22,7 @@ model_dict['nonlinearity'] = 'swish'
 model_dict['sigma_max'] = 50
 model_dict['sigma_min'] = 0.01
 model_dict['num_scales'] = 1000
+model_dict['savepath'] = 'ddpm'
 data_dict = dict()
 data_dict['image_size'] = 32
 data_dict['num_channels'] = 3
@@ -44,16 +45,16 @@ train_loader, val_loader = get_datasets()
 eps_th = Unet(config)
 eps_th.to(device)
 ema_ = ema.ExponentialMovingAverage(eps_th.parameters(), decay=0.9999)
-exp_name = 'ddpm'
-eps_th.load_state_dict(torch.load(f'{exp_name}_model'), strict=False)
-ema_.load_state_dict(torch.load(f'{exp_name}_ema'))
+state = torch.load(config.model.savepath)
+eps_th.load_state_dict(state['model'], strict=False)
+ema_.load_state_dict(state['ema'])
 ema_.copy_to(eps_th.parameters())
 eps_th.eval()
 
 with torch.no_grad():
-    save_callable(lambda: sample_sde(device, eps_th), "data_model", 128*128)
+    save_callable(lambda: sample_sde(device, eps_th), "data_model", 256)
     
-save_dataloader(train_loader, 'data_dataset', 128*128)
+# save_dataloader(train_loader, 'data_dataset', 128*128)
 
 # res = fid_score.calculate_fid_given_paths(
 #         paths=['data_dataset', 'data_model'],
