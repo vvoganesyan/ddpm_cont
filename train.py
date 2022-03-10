@@ -10,32 +10,8 @@ import wandb
 import matplotlib.pyplot as plt
 from tqdm.auto import tqdm, trange
 
-model_dict = dict()
-model_dict['nf'] = 128
-model_dict['ch_mult'] = (1, 2, 2)
-model_dict['num_res_blocks'] = 2
-model_dict['attn_resolutions'] = (16,)
-model_dict['dropout'] = 0.1
-model_dict['resamp_with_conv'] = True
-model_dict['conditional'] = True
-model_dict['nonlinearity'] = 'swish'
-model_dict['sigma_max'] = 50
-model_dict['sigma_min'] = 0.01
-model_dict['num_scales'] = 1000
-model_dict['savepath'] = 'ddpm'
-data_dict = dict()
-data_dict['image_size'] = 32
-data_dict['num_channels'] = 3
-data_dict['centered'] = True
-train_dict = dict()
-train_dict['grad_clip'] = 1.0
-train_dict['warmup'] = 5000
-train_dict['lr'] = 2e-4
-config_dict = dict()
-config_dict['model'] = dotdict(model_dict)
-config_dict['data'] = dotdict(data_dict)
-config_dict['train'] = dotdict(train_dict)
-config = dotdict(config_dict)
+from config import *
+config = get_configs()
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

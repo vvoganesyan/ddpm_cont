@@ -1,6 +1,6 @@
 from torch import nn
 from torchvision import transforms
-from torchvision.datasets import CIFAR10
+from torchvision.datasets import CIFAR10, MNIST
 from torch.utils.data import DataLoader
 from models import ddpm
 from models import ema
@@ -63,6 +63,14 @@ def log_losses(title, loss, step):
     if loss is not None:
         wandb.log({f'{title}/loss_sm': loss}, step=step)
 
+def SDE_noise(x, t):
+    a = alpha(t)
+    s_2 = sigma_2(t)
+    eps = torch.randn_like(x).to(device)
+    z = a[:, None, None, None] * x + s_2[:, None, None, None] ** 0.5 * eps
+    return z
+        
+        
 def calc_losses(eps_th, x, downsample_step=0, T_ds=0.15):
     device = x.device
     bs = x.shape[0]
@@ -84,7 +92,7 @@ def calc_losses(eps_th, x, downsample_step=0, T_ds=0.15):
     a = alpha(t)
     z = a[:, None, None, None] * xd + s_2[:, None, None, None] ** 0.5 * eps
     
-    loss_sm = (t/s_2) * ((eps - eps_th(t, z)) ** 2).sum(dim=(1, 2, 3))    
+    loss_sm = ((eps - eps_th(t, z)) ** 2).sum(dim=(1, 2, 3))    
     loss_sm = loss_sm.mean()
 
     return loss_sm
@@ -121,14 +129,15 @@ class dotdict(dict):
 def get_datasets(BATCH_SIZE = 128):
     
     transform = transforms.Compose([
+        transforms.Resize((32,32)),
         transforms.ToTensor(),
-        transforms.RandomHorizontalFlip(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+#         transforms.RandomHorizontalFlip(),
+        transforms.Normalize((0.5), (0.5))
 #         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
     ])
 
-    train_data = CIFAR10(root='./data/', train=True, download=True, transform=transform)
-    val_data = CIFAR10(root='./data/', train=False, download=True, transform=transform)
+    train_data = MNIST(root='./data/', train=True, download=True, transform=transform)
+    val_data = MNIST(root='./data/', train=False, download=True, transform=transform)
 
     train_loader = DataLoader(
         train_data,
@@ -187,14 +196,18 @@ def save_img(p, path, num):
     mkdir(path)
     sc = torch.tensor([0.5, 0.5, 0.5])
     m = torch.tensor([0.5, 0.5, 0.5])
-    for i in range(3):
+    for i in range(p.shape[0]):
         p[i,:,:] = p[i,:,:]*m[i] + sc[i]
     p = p * 255
     p = p.clamp(0, 255)
     p = p.detach().cpu().numpy()
     p = p.astype(np.uint8)
     p = p.transpose((1,2,0))
-    p = Image.fromarray(p, mode='RGB')
+    if p.shape[-1] == 3:
+        p = Image.fromarray(p, mode='RGB')
+    elif p.shape[-1] == 1:
+        p = p.squeeze(2)
+        p = Image.fromarray(p, mode='L')
     p.save(f"{path}/{num}.png", format="png")
     
 def save_batch(x, path, num):
@@ -250,11 +263,11 @@ def sample_sde(device, eps_th, image_size, num_channels, batch_size_sample):
         ts=1, tf=0.0, dt=-1e-3
     )
     return x
-def sample_sde_mid(x_mid, ts, tf):
-    x = solve_sde(
+def sample_sde_mid(device, eps_th, x_mid, ts, tf):
+    x = solve_sde(device,
         x_mid,
-        f=lambda t, x: f(t) * x - g_2(t) * s(eps_th_big, t, x),
-        g=lambda t, x: g_2(t) ** 0.5,
+        f=lambda t, x: -10*t*x - 20*t*s(eps_th, t, x),
+        g=lambda t, x: (20*t) ** 0.5,
         ts=ts, tf=tf, dt=-1e-3
     )
     return x
@@ -299,3 +312,9 @@ def upsample_image(inp, cov_matrix=None, alpha_t=1.0, sigma_t_2=0.0):
     prev_state = upsample(inp, cov_matrix.to(device), alpha_t, sigma_t_2)
     shp = inp.shape
     return prev_state.reshape(*shp, 2, 2).permute(0, 1, 2, 4, 3, 5).reshape(shp[0], shp[1], shp[2] * 2, shp[3] * 2)
+
+def noising_PET_image(image, k, alpha):
+    poisson_mean = k*(1-alpha)*image
+    perturbed_image = torch.poisson(poisson_mean)
+    perturbed_image = perturbed_image / k
+    return alpha*image + perturbed_image
