@@ -18,6 +18,9 @@ def get_configs():
     data_dict.image_size = 32
     data_dict.num_channels = 1
     data_dict.centered = True
+    data_dict.batch_size = 128
+    data_dict.norm_mean = (0.5)
+    data_dict.norm_std = (0.5)
     train_dict = dotdict()
     train_dict.grad_clip = 1.0
     train_dict.warmup = 5000

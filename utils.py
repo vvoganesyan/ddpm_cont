@@ -63,7 +63,7 @@ def log_losses(title, loss, step):
     if loss is not None:
         wandb.log({f'{title}/loss_sm': loss}, step=step)
 
-def SDE_noise(x, t):
+def SDE_noise(x, t, device):
     a = alpha(t)
     s_2 = sigma_2(t)
     eps = torch.randn_like(x).to(device)
@@ -126,13 +126,14 @@ class dotdict(dict):
     __setattr__ = dict.__setitem__
     __delattr__ = dict.__delitem__
     
-def get_datasets(BATCH_SIZE = 128):
-    
+def get_datasets(config):
+
+    BATCH_SIZE = config.data.batch_size
     transform = transforms.Compose([
         transforms.Resize((32,32)),
         transforms.ToTensor(),
 #         transforms.RandomHorizontalFlip(),
-        transforms.Normalize((0.5), (0.5))
+        transforms.Normalize(config.data.norm_mean, config.data.norm_std)
 #         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
     ])
 
@@ -192,12 +193,12 @@ def mkdir(path):
 def rmdir(path):
     shutil.rmtree(path)
 
-def save_img(p, path, num):
+def save_img(p, path, num, scale):
     mkdir(path)
-    sc = torch.tensor([0.5, 0.5, 0.5])
-    m = torch.tensor([0.5, 0.5, 0.5])
-    for i in range(p.shape[0]):
-        p[i,:,:] = p[i,:,:]*m[i] + sc[i]
+    m = torch.tensor(scale[0])
+    sc = torch.tensor(scale[1])
+    for i in range(len(sc)):
+        p[i,:,:] = p[i,:,:]*sc[i] + m[i]
     p = p * 255
     p = p.clamp(0, 255)
     p = p.detach().cpu().numpy()
@@ -210,23 +211,23 @@ def save_img(p, path, num):
         p = Image.fromarray(p, mode='L')
     p.save(f"{path}/{num}.png", format="png")
     
-def save_batch(x, path, num):
+def save_batch(x, path, num, scale):
     for p in x:
-        save_img(p, path, num)
+        save_img(p, path, num, scale)
         num += 1
     return num
 
 def save_dataloader(loader, path, n=2048):
     m = 0
     for x, _ in loader:
-        m = save_batch(x, path, m)
+        m = save_batch(x, path, m, scale)
         if m >= n:
             break
             
 def save_callable(foo, path, n=2048):
     m = 0
     while m < n:
-        m = save_batch(foo(), path, m)
+        m = save_batch(foo(), path, m, scale)
         
 @torch.no_grad()
 def calc_fid(foo):
@@ -318,3 +319,9 @@ def noising_PET_image(image, k, alpha):
     perturbed_image = torch.poisson(poisson_mean)
     perturbed_image = perturbed_image / k
     return alpha*image + perturbed_image
+
+def restore_image(x_noised, t0, device, eps_th):
+    t0_array = t0*torch.ones(len(x_noised),).to(device)
+    z = SDE_noise(x_noised, t0_array, device)
+    z_restored = sample_sde_mid(device, eps_th, z, t0, 0.0)
+    return z_restored, z
