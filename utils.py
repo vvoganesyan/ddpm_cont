@@ -126,19 +126,17 @@ class dotdict(dict):
     __setattr__ = dict.__setitem__
     __delattr__ = dict.__delitem__
     
-def get_datasets(config):
+def get_dataset_CIFAR10(config):
 
     BATCH_SIZE = config.data.batch_size
     transform = transforms.Compose([
-        transforms.Resize((32,32)),
         transforms.ToTensor(),
-#         transforms.RandomHorizontalFlip(),
+        transforms.RandomHorizontalFlip(),
         transforms.Normalize(config.data.norm_mean, config.data.norm_std)
-#         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
     ])
 
-    train_data = MNIST(root='./data/', train=True, download=True, transform=transform)
-    val_data = MNIST(root='./data/', train=False, download=True, transform=transform)
+    train_data = CIFAR10(root='../data/', train=True, download=True, transform=transform)
+    val_data = CIFAR10(root='../data/', train=False, download=True, transform=transform)
 
     train_loader = DataLoader(
         train_data,
@@ -155,6 +153,35 @@ def get_datasets(config):
         drop_last=True
     )
     return train_loader, val_loader
+
+def get_dataset_MNIST(config):
+
+    BATCH_SIZE = config.data.batch_size
+    transform = transforms.Compose([
+        transforms.Resize((32,32)),
+        transforms.ToTensor(),
+        transforms.Normalize(config.data.norm_mean, config.data.norm_std)
+    ])
+
+    train_data = MNIST(root='../data/', train=True, download=True, transform=transform)
+    val_data = MNIST(root='../data/', train=False, download=True, transform=transform)
+
+    train_loader = DataLoader(
+        train_data,
+        batch_size=BATCH_SIZE,
+        shuffle=True,
+        num_workers=4,
+        drop_last=True
+    )
+    val_loader = DataLoader(
+        val_data,
+        batch_size=BATCH_SIZE,
+        shuffle=False,
+        num_workers=4,
+        drop_last=True
+    )
+    return train_loader, val_loader
+
 
 @torch.no_grad()
 def gen_discrete(eps_th, n=1000, bs=128):
@@ -217,14 +244,14 @@ def save_batch(x, path, num, scale):
         num += 1
     return num
 
-def save_dataloader(loader, path, n=2048):
+def save_dataloader(loader, path, scale, n=2048):
     m = 0
     for x, _ in loader:
         m = save_batch(x, path, m, scale)
         if m >= n:
             break
             
-def save_callable(foo, path, n=2048):
+def save_callable(foo, path, scale, n=2048):
     m = 0
     while m < n:
         m = save_batch(foo(), path, m, scale)
