@@ -11,6 +11,7 @@ import wandb
 import os
 import shutil
 from PIL import Image
+import torch.distributions as D
 
 
 # Model
@@ -38,6 +39,9 @@ class Unet(nn.Module):
 
 def snr(t):
     return 1 / torch.expm1(1e-4 + 10 * t ** 2)
+
+def snr1(t):
+    return 1 / torch.expm1(1e-4 + 0.1*t + 9.95 * t ** 2)
 
 def alpha(t):
     return (snr(t) / (1 + snr(t))) ** 0.5
@@ -277,25 +281,46 @@ def calc_fid(foo):
     return res
 
 @torch.no_grad()
-def solve_sde(device, x, f, g, ts=0, tf=1, dt=1e-3):
-    for t in np.arange(ts, tf, dt):
+def solve_sde(device, x, f, g, i_inter, ts=0, tf=1, dt=1e-3):
+    x_inter = []
+    t_inter = []
+    for i, t in enumerate(np.arange(ts, tf, dt)):
+        if i in i_inter:
+            x_inter.append(x)
+            t_inter.append(t)
         tt = torch.FloatTensor([t])[0].to(device)
         z = torch.randn_like(x).to(device)
         x = x + f(tt, x) * dt + g(tt, x) * z * abs(dt) ** 0.5    
-    return x
-def sample_sde(device, eps_th, image_size, num_channels, batch_size_sample):
-    x = solve_sde(device,
-        torch.randn(batch_size_sample, num_channels, image_size, image_size).to(device),
-        f=lambda t, x: -10*t*x - 20*t*s(eps_th, t, x),
-        g=lambda t, x: (20*t) ** 0.5,
-        ts=1, tf=0.0, dt=-1e-3
+    return x, x_inter, t_inter
+def sample_sde_small(device, eps_th, image_size, num_channels, batch_size_sample, i_inter, tf=0.0):
+    x, x_inter, t_inter = solve_sde(device,
+        torch.randn(batch_size_sample, num_channels, image_size, image_size).to(device)/2,
+        lambda t, x: -10*t*x - 20*t*s(eps_th, t, x)/2,
+        lambda t, x: (20*t) ** 0.5/2, i_inter,
+        ts=1, tf=tf, dt=-1e-3
     )
-    return x
-def sample_sde_mid(device, eps_th, x_mid, ts, tf):
-    x = solve_sde(device,
+    return x, x_inter, t_inter
+def sample_sde1(device, eps_th, image_size, num_channels, batch_size_sample, i_inter, tf=0.0):
+    x, x_inter, t_inter = solve_sde(device,
+        torch.randn(batch_size_sample, num_channels, image_size, image_size).to(device),
+        lambda t, x: -10*t*x - 20*t*s(eps_th, t, x),
+        lambda t, x: (20*t) ** 0.5, i_inter,
+        ts=1, tf=tf, dt=-1e-3
+    )
+    return x, x_inter, t_inter
+def sample_sde(device, eps_th, image_size, num_channels, batch_size_sample, i_inter, tf=0.0):
+    x, x_inter, t_inter = solve_sde(device,
+        torch.randn(batch_size_sample, num_channels, image_size, image_size).to(device),
+        lambda t, x: -(19.9*t+0.1)*x/2 - (19.9*t+0.1)*s(eps_th, t, x),
+        lambda t, x: (19.9*t+0.1) ** 0.5, i_inter,
+        ts=1, tf=tf, dt=-1e-3
+    )
+    return x, x_inter, t_inter
+def sample_sde_mid(device, eps_th, x_mid, ts, tf=0.0):
+    x, x_inter, t_inter = solve_sde(device,
         x_mid,
-        f=lambda t, x: -10*t*x - 20*t*s(eps_th, t, x),
-        g=lambda t, x: (20*t) ** 0.5,
+        lambda t, x: -10*t*x - 20*t*s(eps_th, t, x),
+        lambda t, x: (20*t) ** 0.5, [],
         ts=ts, tf=tf, dt=-1e-3
     )
     return x
@@ -352,3 +377,21 @@ def restore_image(x_noised, t0, device, eps_th):
     z = SDE_noise(x_noised, t0_array, device)
     z_restored = sample_sde_mid(device, eps_th, z, t0, 0.0)
     return z_restored, z
+
+def display_samples(x):
+    big_img = np.zeros((8*32,8*32,3),dtype=np.uint8)
+    for i in range(8):
+        for j in range(8):
+            im = x[i*8+j+64]
+            m = config.data.norm_mean
+            sc = config.data.norm_std
+            for k in range(len(sc)):
+                im[k,:,:] = im[k,:,:]*sc[k] + m[k]
+            p = im * 255
+            p = p.clamp(0, 255)
+            p = p.detach().cpu().numpy()
+            p = p.astype(np.uint8)
+            p = p.transpose((1,2,0))
+            big_img[i*32:(i+1)*32, j*32:(j+1)*32,:] = p
+    big_img = Image.fromarray(big_img)
+    display(big_img)

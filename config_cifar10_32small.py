@@ -2,7 +2,7 @@ from utils import dotdict
 
 def get_configs():
     model_dict = dotdict()
-    model_dict.nf = 128
+    model_dict.nf = 96
     model_dict.ch_mult = (1, 2, 2)
     model_dict.num_res_blocks = 2
     model_dict.attn_resolutions = (8,)
@@ -13,9 +13,9 @@ def get_configs():
     model_dict.sigma_max = 50
     model_dict.sigma_min = 0.01
     model_dict.num_scales = 1000
-    model_dict.savepath = 'ddpm_16'
+    model_dict.savepath = 'ddpm_32_small'
     data_dict = dotdict()
-    data_dict.image_size = 16
+    data_dict.image_size = 32
     data_dict.num_channels = 3
     data_dict.centered = True
     data_dict.batch_size = 128
